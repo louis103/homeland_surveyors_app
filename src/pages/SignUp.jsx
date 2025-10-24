@@ -168,15 +168,19 @@ const SignUp = () => {
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white text-center drop-shadow-lg">
-            <h1 className="text-5xl font-bold mb-4 drop-shadow-md">Homeland Surveyors</h1>
-            <p className="text-xl drop-shadow-md">Precision in Every Measurement</p>
+          <div className="text-center">
+            <h1 className="text-5xl font-bold mb-4 text-gray-800 drop-shadow-2xl" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+              Homeland Surveyors
+            </h1>
+            <p className="text-xl text-gray-700 drop-shadow-xl" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>
+              Precision in Every Measurement
+            </p>
           </div>
         </div>
       </div>
 
       {/* Right Side - Form (Desktop) / Center Overlay (Mobile) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-12 relative">
+      <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-4 py-6 lg:py-12 relative">
         {/* Mobile Background */}
         <div className="lg:hidden absolute inset-0">
           <img
@@ -187,13 +191,17 @@ const SignUp = () => {
         </div>
 
         {/* Form Container */}
-        <div className="relative z-10 max-w-md w-full">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-2 text-white lg:text-gray-900">Create Account</h1>
-            <p className="text-gray-200 lg:text-gray-600">Join Homeland Surveyors today</p>
+        <div className="relative z-10 max-w-md w-full mt-4 lg:mt-0">
+          <div className="text-center mb-6 lg:mb-8">
+            <h1 className="text-3xl lg:text-4xl font-bold mb-2 text-gray-800 lg:text-gray-900" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.2)' }}>
+              Create Account
+            </h1>
+            <p className="text-gray-700 lg:text-gray-600" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>
+              Join Homeland Surveyors today
+            </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Username Field */}
               <div>
