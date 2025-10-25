@@ -27,3 +27,8 @@ dist-ssr
 .env.example
 .env.local
 .env.*.local
+/sql_fixes/*.sql
+/RBAC_SETUP.sql
+/permissions_migration.sql
+/sql_fixes*
+/.migrations-manifest.json

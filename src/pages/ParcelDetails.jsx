@@ -4,11 +4,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, Pencil, Trash2, X, Upload, Loader, Download, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../hooks/usePermissions';
 
 const ParcelDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const permissions = usePermissions();
   const [parcel, setParcel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -441,24 +443,28 @@ const ParcelDetails = () => {
                 {id === 'new' ? 'New Parcel' : `Parcel ${parcel?.parcel_number || ''}`}
               </h1>
             </div>
-            {id !== 'new' && !isEditing && (
+            {id !== 'new' && !isEditing && (permissions.canEditParcels || permissions.canDeleteParcels) && (
               <div className="flex space-x-2 sm:space-x-3">
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2 p-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="h-5 w-5" />
-                  <span className="hidden sm:inline">Edit</span>
-                </button>
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="flex items-center space-x-2 p-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="h-5 w-5" />
-                  <span className="hidden sm:inline">Delete</span>
-                </button>
+                {permissions.canEditParcels && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center space-x-2 p-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="h-5 w-5" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </button>
+                )}
+                {permissions.canDeleteParcels && (
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="flex items-center space-x-2 p-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                )}
               </div>
             )}
             {isEditing && (

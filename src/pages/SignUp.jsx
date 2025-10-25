@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Mail, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import topoBg from '../assets/topo-bg.jpg';
+import topoBg from '../assets/survey-bg.jpg';
 
 const SignUp = () => {
   const [username, setUsername] = useState('');
@@ -169,10 +169,10 @@ const SignUp = () => {
         />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-5xl font-bold mb-4 text-gray-800 drop-shadow-2xl" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+            <h1 className="text-5xl font-bold mb-4 text-white drop-shadow-2xl" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
               Homeland Surveyors
             </h1>
-            <p className="text-xl text-gray-700 drop-shadow-xl" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>
+            <p className="text-xl text-white drop-shadow-xl" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>
               Precision in Every Measurement
             </p>
           </div>

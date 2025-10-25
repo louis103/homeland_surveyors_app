@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, User, Mail, X, Calendar, Plus, Search } from 'lucide-react';
+import { LogOut, User, Mail, X, Calendar, Plus, Search, Shield, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import ParcelCard from '../components/ParcelCard';
+import { usePermissions } from '../hooks/usePermissions';
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const permissions = usePermissions();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,10 +79,19 @@ const Dashboard = () => {
               <img src="/web-icon.png" alt="Homeland Surveyors" className="h-8 w-8" />
               <h1 className="text-2xl font-bold text-gray-900">Homeland Surveyors</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {permissions.isAdmin && (
+                <button
+                  onClick={() => navigate('/dashboard/permissions')}
+                  className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg transition-colors"
+                >
+                  <Shield className="h-5 w-5" />
+                  <span className="hidden sm:block font-medium">Edit Permissions</span>
+                </button>
+              )}
               <button
                 onClick={() => navigate('/dashboard/calendar')}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 <Calendar className="h-5 w-5 text-gray-700" />
                 <span className="hidden sm:block text-gray-700 font-medium">Calendar</span>
@@ -104,26 +115,26 @@ const Dashboard = () => {
       {/* Profile Modal */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col relative">
             <button
               onClick={() => setShowProfileModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
             >
               <X className="h-6 w-6" />
             </button>
             
-            <div className="text-center mb-6">
+            <div className="text-center p-6 pb-4 shrink-0">
               <div className="h-20 w-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <User className="h-10 w-10 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900">User Profile</h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto px-6 pb-4 flex-1">
               {/* Username */}
               {user?.user_metadata?.username && (
                 <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     <User className="h-6 w-6 text-blue-600" />
                   </div>
                   <div className="flex-1">
@@ -135,7 +146,7 @@ const Dashboard = () => {
 
               {/* Email */}
               <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <Mail className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="flex-1">
@@ -146,7 +157,7 @@ const Dashboard = () => {
 
               {/* Email Verification Status */}
               <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <div className={`h-3 w-3 rounded-full ${
                     user?.email_confirmed_at ? 'bg-green-500' : 'bg-yellow-500'
                   }`} />
@@ -158,9 +169,62 @@ const Dashboard = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Roles */}
+              {!permissions.loading && permissions.roles && (
+                <div className="flex items-start space-x-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="shrink-0">
+                    <Shield className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Your Roles</p>
+                    <div className="flex flex-wrap gap-2">
+                      {permissions.roles.map((role) => (
+                        <span
+                          key={role}
+                          className="px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded-full capitalize"
+                        >
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Permissions */}
+              {!permissions.loading && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                    <p className="text-sm font-medium text-gray-700">Your Permissions</p>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    {[
+                      { check: permissions.canAddParcels, label: 'Add Parcels' },
+                      { check: permissions.canEditParcels, label: 'Edit Parcels' },
+                      { check: permissions.canDeleteParcels, label: 'Delete Parcels' },
+                      { check: permissions.canAddCalendarEvents, label: 'Add Calendar Events' },
+                      { check: permissions.canEditCalendarEvents, label: 'Edit Calendar Events' },
+                      { check: permissions.canDeleteCalendarEvents, label: 'Delete Calendar Events' },
+                    ].map(({ check, label }) => (
+                      <div key={label} className="flex items-center space-x-2">
+                        {check ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <X className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span className={check ? 'text-gray-900' : 'text-gray-500'}>
+                          {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="mt-6 flex space-x-3">
+            <div className="p-6 pt-4 flex space-x-3 shrink-0 border-t border-gray-200">
               <button
                 onClick={() => setShowProfileModal(false)}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
@@ -195,13 +259,15 @@ const Dashboard = () => {
                 Manage your land parcels and metadata
               </p>
             </div>
-            <button
-              onClick={() => navigate('/dashboard/parcel/new')}
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Parcel</span>
-            </button>
+            {permissions.canAddParcels && (
+              <button
+                onClick={() => navigate('/dashboard/parcel/new')}
+                className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Parcel</span>
+              </button>
+            )}
           </div>
         </div>
 

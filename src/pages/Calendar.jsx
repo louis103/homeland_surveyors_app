@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar as CalendarIcon, Plus, Search, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import toast from 'react-hot-toast';
 
 const Calendar = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const permissions = usePermissions();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -127,13 +129,15 @@ const Calendar = () => {
                 <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Calendar</h1>
               </div>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center space-x-2 px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="hidden sm:inline">Add Activity</span>
-            </button>
+            {permissions.canAddCalendarEvents && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center space-x-2 px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-5 w-5" />
+                <span className="hidden sm:inline">Add Activity</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -149,12 +153,14 @@ const Calendar = () => {
                 <div key={activity.id} className="bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 shrink-0 w-72 snap-start text-white">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-lg font-semibold">{activity.title}</h3>
-                    <button
-                      onClick={() => handleDeleteActivity(activity.id)}
-                      className="p-1 hover:bg-white/20 rounded transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {permissions.canDeleteCalendarEvents && (
+                      <button
+                        onClick={() => handleDeleteActivity(activity.id)}
+                        className="p-1 hover:bg-white/20 rounded transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {activity.description && (
                     <p className="text-blue-100 text-sm mb-3 line-clamp-2">{activity.description}</p>

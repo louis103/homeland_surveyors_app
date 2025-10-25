@@ -7,6 +7,7 @@ import SignIn from './pages/SignIn';
 import Dashboard from './pages/Dashboard';
 import ParcelDetails from './pages/ParcelDetails';
 import Calendar from './pages/Calendar';
+import PermissionsManagement from './pages/PermissionsManagement';
 
 function App() {
   return (
@@ -61,6 +62,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Calendar />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/permissions"
+            element={
+              <ProtectedRoute>
+                <PermissionsManagement />
               </ProtectedRoute>
             }
           />
