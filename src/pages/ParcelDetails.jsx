@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Pencil, Trash2, X, Upload, Loader, Download } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X, Upload, Loader, Download, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ParcelDetails = () => {
@@ -39,7 +39,9 @@ const ParcelDetails = () => {
     physical_planning_fees: { paid: '', pending: '0' },
     search_fees: { paid: '', pending: '0' },
     other_services: { paid: '', pending: '0' },
+    succession_fees: { paid: '', pending: '0' },
     imagesurl: [],
+    dwg_files: [],
   });
 
   const fetchParcel = async () => {
@@ -174,6 +176,121 @@ const ParcelDetails = () => {
     }
   };
 
+  const handleDwgUpload = async (files) => {
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const uploadedFiles = [];
+
+    try {
+      for (const file of Array.from(files)) {
+        // Check if file is DWG
+        if (!file.name.toLowerCase().endsWith('.dwg')) {
+          toast.error(`${file.name} is not a DWG file`);
+          continue;
+        }
+
+        const fileName = `${Date.now()}-${file.name}`;
+        const filePath = `dwg/${id !== 'new' ? id : 'temp'}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('parcel-images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('parcel-images')
+          .getPublicUrl(filePath);
+
+        uploadedFiles.push({
+          url: publicUrl,
+          name: file.name,
+          size: file.size,
+        });
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        dwg_files: [...(prev.dwg_files || []), ...uploadedFiles]
+      }));
+
+      toast.success(`${uploadedFiles.length} DWG file(s) uploaded successfully`);
+    } catch (error) {
+      console.error('Error uploading DWG files:', error);
+      toast.error('Failed to upload some DWG files');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadDwg = async (url, fileName) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success('DWG file downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading DWG file:', error);
+      toast.error('Failed to download DWG file');
+    }
+  };
+
+  const handleDeleteDwg = async (url, index) => {
+    if (!confirm('Are you sure you want to delete this DWG file? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const urlParts = url.split('/parcel-images/');
+      if (urlParts.length < 2) {
+        throw new Error('Invalid file URL format');
+      }
+      const filePath = urlParts[1];
+
+      const { error: storageError } = await supabase.storage
+        .from('parcel-images')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const updatedFiles = formData.dwg_files.filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        dwg_files: updatedFiles
+      }));
+
+      if (!isEditing && id !== 'new') {
+        const { error: dbError } = await supabase
+          .from('parcels')
+          .update({ dwg_files: updatedFiles })
+          .eq('id', id);
+
+        if (dbError) throw dbError;
+        setParcel(prev => ({ ...prev, dwg_files: updatedFiles }));
+      }
+
+      toast.success('DWG file deleted successfully');
+    } catch (error) {
+      console.error('Error deleting DWG file:', error);
+      toast.error('Failed to delete DWG file');
+    }
+  };
+
+  const handleRemoveDwg = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      dwg_files: prev.dwg_files.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleSave = async () => {
     if (!formData.parcel_number) {
       toast.error('Parcel number is required');
@@ -223,6 +340,16 @@ const ParcelDetails = () => {
       if (parcel.imagesurl && parcel.imagesurl.length > 0) {
         for (const url of parcel.imagesurl) {
           const path = url.split('/parcel-images/')[1];
+          if (path) {
+            await supabase.storage.from('parcel-images').remove([path]);
+          }
+        }
+      }
+
+      // Delete DWG files from storage
+      if (parcel.dwg_files && parcel.dwg_files.length > 0) {
+        for (const file of parcel.dwg_files) {
+          const path = file.url.split('/parcel-images/')[1];
           if (path) {
             await supabase.storage.from('parcel-images').remove([path]);
           }
@@ -293,6 +420,7 @@ const ParcelDetails = () => {
     { key: 'stamp_duty', label: 'Stamp Duty' },
     { key: 'physical_planning_fees', label: 'Physical Planning Fees' },
     { key: 'search_fees', label: 'Search Fees' },
+    { key: 'succession_fees', label: 'Succession Fees' },
     { key: 'other_services', label: 'Other Services' },
   ];
 
@@ -591,6 +719,88 @@ const ParcelDetails = () => {
             </div>
             {(!formData?.imagesurl || formData.imagesurl.length === 0) && !isEditing && (
               <p className="text-gray-500 text-center py-8">No images uploaded</p>
+            )}
+          </div>
+
+          {/* DWG Files */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">AutoCAD DWG Files</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading DWG files...</p>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload DWG files</p>
+                        <p className="text-xs text-gray-500 mt-1">AutoCAD .dwg files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".dwg"
+                    onChange={(e) => handleDwgUpload(e.target.files)}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.dwg_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-blue-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleRemoveDwg(index)}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDownloadDwg(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDwg(file.url, index)}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.dwg_files || formData.dwg_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No DWG files uploaded</p>
             )}
           </div>
         </div>
