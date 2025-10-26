@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar as CalendarIcon, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Plus, Search, Trash2, X, Shield, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -21,25 +21,72 @@ const Calendar = () => {
   });
 
   useEffect(() => {
-    fetchActivities();
-  }, []);
+    // Only fetch when user and permissions are ready
+    if (user && !permissions.loading) {
+      fetchActivities();
+    }
+  }, [user, permissions.loading, permissions.isAdmin]);
 
   const fetchActivities = async () => {
     try {
+      // Don't fetch if permissions not loaded yet
+      if (permissions.loading) {
+        return;
+      }
+      
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('activities')
         .select('*')
-        .eq('user_id', user.id)
         .order('date', { ascending: true });
+      
+      // Admin sees all activities, others see only their own
+      if (!permissions.isAdmin) {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
-      setActivities(data || []);
+      
+      // Fetch creator usernames for admin view
+      const activitiesWithCreators = await enrichActivitiesWithCreators(data || []);
+      setActivities(activitiesWithCreators);
     } catch (error) {
       console.error('Error fetching activities:', error);
       toast.error('Failed to load activities');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const enrichActivitiesWithCreators = async (activities) => {
+    if (!permissions.isAdmin || activities.length === 0) {
+      return activities;
+    }
+
+    try {
+      // Fetch user metadata
+      const { data: usersData, error } = await supabase
+        .rpc('get_users_with_roles');
+
+      if (error) throw error;
+
+      // Create a map of user_id to username
+      const userMap = {};
+      usersData.forEach(u => {
+        userMap[u.id] = u.username || u.email?.split('@')[0] || 'Unknown User';
+      });
+
+      // Add creator info to activities
+      return activities.map(activity => ({
+        ...activity,
+        creator_name: userMap[activity.user_id] || 'Unknown User',
+        is_own: activity.user_id === user?.id
+      }));
+    } catch (error) {
+      console.error('Error enriching activities with creators:', error);
+      return activities;
     }
   };
 
@@ -144,10 +191,32 @@ const Calendar = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Permission Banner */}
+        {!permissions.canAddCalendarEvents && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <Shield className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-yellow-800">Limited Access</p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  You do not have enough permissions to add events. Contact your administrator to request access.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Upcoming Activities */}
         {upcomingActivities.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Activities</h2>
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Upcoming Activities</h2>
+              {permissions.canAddCalendarEvents && activities.length > 0 && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {permissions.isAdmin ? 'All upcoming events in the system' : 'Events added by you'}
+                </p>
+              )}
+            </div>
             <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory">
               {upcomingActivities.map(activity => (
                 <div key={activity.id} className="bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 shrink-0 w-72 snap-start text-white">
@@ -173,6 +242,14 @@ const Calendar = () => {
                       day: 'numeric'
                     })}
                   </p>
+                  {activity.creator_name && (
+                    <div className="flex items-center gap-1 mt-2">
+                      <User className="h-3 w-3" />
+                      <p className="text-xs text-blue-100">
+                        Created by: <span className={activity.is_own ? 'font-semibold' : ''}>{activity.creator_name}</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -197,6 +274,11 @@ const Calendar = () => {
         <div className="bg-white rounded-xl shadow-sm">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-bold text-gray-900">All Activities</h2>
+            {permissions.canAddCalendarEvents && activities.length > 0 && (
+              <p className="text-sm text-gray-600 mt-1">
+                {permissions.isAdmin ? 'All events in the system' : 'Events added by you'}
+              </p>
+            )}
           </div>
           <div className="divide-y divide-gray-200">
             {filteredActivities.length === 0 ? (
@@ -208,7 +290,7 @@ const Calendar = () => {
                 <p className="text-gray-600 mb-4">
                   {searchQuery ? 'Try a different search term' : 'Get started by adding your first activity'}
                 </p>
-                {!searchQuery && (
+                {!searchQuery && permissions.canAddCalendarEvents && (
                   <button
                     onClick={() => setShowAddModal(true)}
                     className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -235,13 +317,23 @@ const Calendar = () => {
                           day: 'numeric'
                         })}
                       </p>
+                      {activity.creator_name && (
+                        <div className="flex items-center gap-1 mt-2">
+                          <User className="h-3 w-3 text-gray-400" />
+                          <p className="text-xs text-gray-500">
+                            Created by: <span className={activity.is_own ? 'text-blue-600 font-medium' : 'text-gray-600'}>{activity.creator_name}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={() => handleDeleteActivity(activity.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    {permissions.canDeleteCalendarEvents && (
+                      <button
+                        onClick={() => handleDeleteActivity(activity.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

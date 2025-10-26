@@ -178,17 +178,17 @@ const PermissionsManagement = () => {
                   <button
                     onClick={() => saveUserPermissions(user.id)}
                     disabled={saving === user.id}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 shrink-0"
                   >
                     {saving === user.id ? (
                       <>
-                        <Loader className="h-4 w-4 animate-spin" />
-                        <span>Saving...</span>
+                        <Loader className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" />
+                        <span className="hidden sm:inline">Saving...</span>
                       </>
                     ) : (
                       <>
-                        <Save className="h-4 w-4" />
-                        <span>Save Changes</span>
+                        <Save className="h-5 w-5 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Save Changes</span>
                       </>
                     )}
                   </button>

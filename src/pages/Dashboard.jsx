@@ -17,10 +17,15 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchParcels();
-  }, [user]);
+    // Only fetch when user and permissions are ready
+    if (user && !permissions.loading) {
+      fetchParcels();
+    }
+  }, [user, permissions.loading, permissions.isAdmin]);
 
   useEffect(() => {
+    if (permissions.loading) return;
+    
     const delayDebounce = setTimeout(() => {
       if (searchQuery.length === 0 || searchQuery.length >= 3) {
         fetchParcels(searchQuery);
@@ -28,29 +33,92 @@ const Dashboard = () => {
     }, 1000);
 
     return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
+  }, [searchQuery, permissions.loading]);
 
   const fetchParcels = async (search = '') => {
     try {
-      setLoading(true);
-      let query = supabase
-        .from('parcels')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (search) {
-        query = query.ilike('parcel_number', `%${search}%`);
+      // Don't fetch if permissions not loaded yet
+      if (permissions.loading) {
+        return;
       }
+      
+      setLoading(true);
+      
+      if (search && search.length >= 3) {
+        // Use the custom search function for owner names and parcel numbers
+        let query = supabase.rpc('search_parcels_by_owner_or_number', { search_term: search });
+        
+        // Admin sees all parcels, others see only their own
+        if (!permissions.isAdmin) {
+          query = query.eq('user_id', user?.id);
+        }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+        const { data, error } = await query;
 
-      if (error) throw error;
-      setParcels(data || []);
+        if (error) throw error;
+        
+        // Fetch creator usernames for admin view
+        const parcelsWithCreators = await enrichParcelsWithCreators(data || []);
+        setParcels(parcelsWithCreators);
+      } else {
+        // Default query without search
+        let query = supabase
+          .from('parcels')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        // Admin sees all parcels, others see only their own
+        if (!permissions.isAdmin) {
+          query = query.eq('user_id', user?.id);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        
+        // Fetch creator usernames for admin view
+        const parcelsWithCreators = await enrichParcelsWithCreators(data || []);
+        setParcels(parcelsWithCreators);
+      }
     } catch (error) {
       console.error('Error fetching parcels:', error);
       toast.error('Failed to load parcels');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const enrichParcelsWithCreators = async (parcels) => {
+    if (!permissions.isAdmin || parcels.length === 0) {
+      return parcels;
+    }
+
+    try {
+      // Get unique user IDs
+      const userIds = [...new Set(parcels.map(p => p.user_id))];
+      
+      // Fetch user metadata from auth.users via RPC or direct query
+      // Since we can't query auth.users directly, we'll use user_roles table
+      const { data: usersData, error } = await supabase
+        .rpc('get_users_with_roles');
+
+      if (error) throw error;
+
+      // Create a map of user_id to username
+      const userMap = {};
+      usersData.forEach(u => {
+        userMap[u.id] = u.username || u.email?.split('@')[0] || 'Unknown User';
+      });
+
+      // Add creator info to parcels
+      return parcels.map(parcel => ({
+        ...parcel,
+        creator_name: userMap[parcel.user_id] || 'Unknown User',
+        is_own: parcel.user_id === user?.id
+      }));
+    } catch (error) {
+      console.error('Error enriching parcels with creators:', error);
+      return parcels;
     }
   };
 
@@ -308,14 +376,21 @@ const Dashboard = () => {
         {/* Parcels Section */}
         <div className="bg-white rounded-2xl shadow-sm p-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h3 className="text-2xl font-bold text-gray-900">Land Parcels</h3>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900">Land Parcels</h3>
+              {permissions.canAddParcels && parcels.length > 0 && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {permissions.isAdmin ? 'All parcels in the system' : 'Parcels added by you'}
+                </p>
+              )}
+            </div>
             
             {/* Search Input */}
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by parcel number..."
+                placeholder="Search by parcel number or owner name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
@@ -331,6 +406,21 @@ const Dashboard = () => {
             </div>
           </div>
           
+          {/* Permission Banner */}
+          {!permissions.canAddParcels && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <Shield className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">Limited Access</p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    You do not have enough permissions to add parcels. Contact your administrator to request access.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {loading ? (
             <div className="flex justify-center items-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -340,7 +430,7 @@ const Dashboard = () => {
               <p className="text-gray-500 mb-4">
                 {searchQuery ? 'No parcels found matching your search.' : 'No parcels found. Add your first parcel to get started.'}
               </p>
-              {!searchQuery && (
+              {!searchQuery && permissions.canAddParcels && (
                 <button
                   onClick={() => navigate('/dashboard/parcel/new')}
                   className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

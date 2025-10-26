@@ -32,3 +32,6 @@ dist-ssr
 /permissions_migration.sql
 /sql_fixes*
 /.migrations-manifest.json
+ADMIN_FIXES_OCT27.md
+ADMIN_VIEW_GUIDE.md
+NEW_FEATURES_GUIDE.md

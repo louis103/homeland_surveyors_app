@@ -44,6 +44,12 @@ const ParcelDetails = () => {
     succession_fees: { paid: '', pending: '0' },
     imagesurl: [],
     dwg_files: [],
+    payment_records: [],
+    mutations_files: [],
+    physical_planning_files: [],
+    title_deed_files: [],
+    lcb_files: [],
+    transfer_files: [],
   });
 
   const fetchParcel = async () => {
@@ -186,14 +192,19 @@ const ParcelDetails = () => {
 
     try {
       for (const file of Array.from(files)) {
-        // Check if file is DWG
-        if (!file.name.toLowerCase().endsWith('.dwg')) {
-          toast.error(`${file.name} is not a DWG file`);
+        const fileName = file.name.toLowerCase();
+        // Check if file is DWG or Word document
+        const isValid = fileName.endsWith('.dwg') || 
+                       fileName.endsWith('.doc') || 
+                       fileName.endsWith('.docx');
+        
+        if (!isValid) {
+          toast.error(`${file.name} is not a DWG or Word document`);
           continue;
         }
 
-        const fileName = `${Date.now()}-${file.name}`;
-        const filePath = `dwg/${id !== 'new' ? id : 'temp'}/${fileName}`;
+        const uniqueFileName = `${Date.now()}-${file.name}`;
+        const filePath = `dwg/${id !== 'new' ? id : 'temp'}/${uniqueFileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('parcel-images')
@@ -209,6 +220,7 @@ const ParcelDetails = () => {
           url: publicUrl,
           name: file.name,
           size: file.size,
+          type: fileName.endsWith('.dwg') ? 'dwg' : 'doc',
         });
       }
 
@@ -217,10 +229,10 @@ const ParcelDetails = () => {
         dwg_files: [...(prev.dwg_files || []), ...uploadedFiles]
       }));
 
-      toast.success(`${uploadedFiles.length} DWG file(s) uploaded successfully`);
+      toast.success(`${uploadedFiles.length} file(s) uploaded successfully`);
     } catch (error) {
-      console.error('Error uploading DWG files:', error);
-      toast.error('Failed to upload some DWG files');
+      console.error('Error uploading files:', error);
+      toast.error('Failed to upload some files');
     } finally {
       setUploading(false);
     }
@@ -403,6 +415,149 @@ const ParcelDetails = () => {
         [field]: value
       }
     });
+  };
+
+  // Payment Records Handlers
+  const addPaymentRecord = () => {
+    setFormData({
+      ...formData,
+      payment_records: [...(formData.payment_records || []), { name: '', amount: '0', payment_date: '' }]
+    });
+  };
+
+  const removePaymentRecord = (index) => {
+    setFormData({
+      ...formData,
+      payment_records: formData.payment_records.filter((_, i) => i !== index)
+    });
+  };
+
+  const handlePaymentRecordChange = (index, field, value) => {
+    const newRecords = [...(formData.payment_records || [])];
+    newRecords[index][field] = value;
+    setFormData({ ...formData, payment_records: newRecords });
+  };
+
+  // Generic Document Upload Handler
+  const handleDocumentUpload = async (files, documentType) => {
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const uploadedFiles = [];
+
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+          toast.error(`${file.name} is not a PDF file`);
+          continue;
+        }
+
+        const uniqueFileName = `${Date.now()}-${file.name}`;
+        const filePath = `${documentType}/${id !== 'new' ? id : 'temp'}/${uniqueFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('parcel-images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('parcel-images')
+          .getPublicUrl(filePath);
+
+        uploadedFiles.push({
+          url: publicUrl,
+          name: file.name,
+          size: file.size,
+          uploaded_at: new Date().toISOString(),
+        });
+      }
+
+      const fieldName = `${documentType}_files`;
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: [...(prev[fieldName] || []), ...uploadedFiles]
+      }));
+
+      toast.success(`${uploadedFiles.length} document(s) uploaded successfully`);
+    } catch (error) {
+      console.error(`Error uploading ${documentType} documents:`, error);
+      toast.error('Failed to upload some documents');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Generic Document Download Handler
+  const handleDocumentDownload = async (url, fileName) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success('Document downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast.error('Failed to download document');
+    }
+  };
+
+  // Generic Document Delete Handler
+  const handleDocumentDelete = async (url, index, documentType) => {
+    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const urlParts = url.split('/parcel-images/');
+      if (urlParts.length < 2) {
+        throw new Error('Invalid file URL format');
+      }
+      const filePath = urlParts[1];
+
+      const { error: storageError } = await supabase.storage
+        .from('parcel-images')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const fieldName = `${documentType}_files`;
+      const updatedFiles = formData[fieldName].filter((_, i) => i !== index);
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: updatedFiles
+      }));
+
+      if (!isEditing && id !== 'new') {
+        const { error: dbError } = await supabase
+          .from('parcels')
+          .update({ [fieldName]: updatedFiles })
+          .eq('id', id);
+
+        if (dbError) throw dbError;
+        setParcel(prev => ({ ...prev, [fieldName]: updatedFiles }));
+      }
+
+      toast.success('Document deleted successfully');
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast.error('Failed to delete document');
+    }
+  };
+
+  // Generic Document Remove from List Handler
+  const handleDocumentRemove = (index, documentType) => {
+    const fieldName = `${documentType}_files`;
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: prev[fieldName].filter((_, i) => i !== index)
+    }));
   };
 
   if (loading && id !== 'new') {
@@ -656,6 +811,92 @@ const ParcelDetails = () => {
             </div>
           </div>
 
+          {/* Payment Records */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Payment Records</h2>
+              {isEditing && (
+                <button
+                  onClick={addPaymentRecord}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  + Add Payment
+                </button>
+              )}
+            </div>
+            {formData?.payment_records && formData.payment_records.length > 0 ? (
+              <div className="space-y-4">
+                {formData.payment_records.map((record, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payer Name
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={record.name}
+                            onChange={(e) => handlePaymentRecordChange(index, 'name', e.target.value)}
+                            className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="e.g., John Doe"
+                          />
+                        ) : (
+                          <p className="text-gray-900">{record.name || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Amount (KES)
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={record.amount}
+                            onChange={(e) => handlePaymentRecordChange(index, 'amount', e.target.value)}
+                            className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="0"
+                          />
+                        ) : (
+                          <p className="text-gray-900">{record.amount || '0'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Date
+                        </label>
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={record.payment_date}
+                              onChange={(e) => handlePaymentRecordChange(index, 'payment_date', e.target.value)}
+                              className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                            {formData.payment_records.length > 1 && (
+                              <button
+                                onClick={() => removePaymentRecord(index)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              >
+                                <X className="h-5 w-5" />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-gray-900">
+                            {record.payment_date ? new Date(record.payment_date).toLocaleDateString() : 'N/A'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">No payment records added</p>
+            )}
+          </div>
+
           {/* Images */}
           <div className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Images</h2>
@@ -728,9 +969,9 @@ const ParcelDetails = () => {
             )}
           </div>
 
-          {/* DWG Files */}
+          {/* DWG Files & Word Documents */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">AutoCAD DWG Files</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">AutoCAD DWG & Word Documents</h2>
             {isEditing && (
               <div className="mb-4">
                 <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
@@ -738,20 +979,20 @@ const ParcelDetails = () => {
                     {uploading ? (
                       <>
                         <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Uploading DWG files...</p>
+                        <p className="text-sm text-gray-600">Uploading files...</p>
                       </>
                     ) : (
                       <>
                         <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload DWG files</p>
-                        <p className="text-xs text-gray-500 mt-1">AutoCAD .dwg files only</p>
+                        <p className="text-sm text-gray-600">Click to upload DWG or Word files</p>
+                        <p className="text-xs text-gray-500 mt-1">AutoCAD .dwg, .doc, .docx files</p>
                       </>
                     )}
                   </div>
                   <input
                     type="file"
                     multiple
-                    accept=".dwg"
+                    accept=".dwg,.doc,.docx"
                     onChange={(e) => handleDwgUpload(e.target.files)}
                     className="hidden"
                     disabled={uploading}
@@ -806,7 +1047,417 @@ const ParcelDetails = () => {
               ))}
             </div>
             {(!formData?.dwg_files || formData.dwg_files.length === 0) && !isEditing && (
-              <p className="text-gray-500 text-center py-8">No DWG files uploaded</p>
+              <p className="text-gray-500 text-center py-8">No DWG or Word files uploaded</p>
+            )}
+          </div>
+
+          {/* MUTATIONS Documents */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Mutations Documents</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload Mutations PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'mutations')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.mutations_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-red-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'mutations')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'mutations')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.mutations_files || formData.mutations_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No mutations documents uploaded</p>
+            )}
+          </div>
+
+          {/* Physical Planning Documents */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Physical Planning Documents</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload Physical Planning PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'physical_planning')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.physical_planning_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-green-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'physical_planning')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'physical_planning')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.physical_planning_files || formData.physical_planning_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No physical planning documents uploaded</p>
+            )}
+          </div>
+
+          {/* Title Deed Documents */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Title Deed Documents</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload Title Deed PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'title_deed')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.title_deed_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-purple-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-purple-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'title_deed')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'title_deed')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.title_deed_files || formData.title_deed_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No title deed documents uploaded</p>
+            )}
+          </div>
+
+          {/* LCB Documents */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">LCB Documents</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload LCB PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'lcb')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.lcb_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-orange-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-orange-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'lcb')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'lcb')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.lcb_files || formData.lcb_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No LCB documents uploaded</p>
+            )}
+          </div>
+
+          {/* Transfer Documents */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Transfer Documents</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload Transfer PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'transfer')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.transfer_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-indigo-500 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-indigo-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'transfer')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'transfer')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.transfer_files || formData.transfer_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No transfer documents uploaded</p>
             )}
           </div>
         </div>

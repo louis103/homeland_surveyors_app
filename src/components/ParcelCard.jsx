@@ -1,4 +1,4 @@
-import { Eye } from 'lucide-react';
+import { Eye, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ParcelCard = ({ parcel }) => {
@@ -15,6 +15,14 @@ const ParcelCard = ({ parcel }) => {
             ? `${parcel.owners.length} owner(s)`
             : 'No owners'}
         </p>
+        {parcel.creator_name && (
+          <div className="flex items-center gap-1 mt-2">
+            <User className="h-3 w-3 text-gray-400" />
+            <p className="text-xs text-gray-500">
+              Created by: <span className={parcel.is_own ? 'text-blue-600 font-medium' : 'text-gray-600'}>{parcel.creator_name}</span>
+            </p>
+          </div>
+        )}
       </div>
       <button
         onClick={() => navigate(`/dashboard/parcel/${parcel.id}`)}
