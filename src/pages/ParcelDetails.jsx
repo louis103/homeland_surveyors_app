@@ -193,13 +193,14 @@ const ParcelDetails = () => {
     try {
       for (const file of Array.from(files)) {
         const fileName = file.name.toLowerCase();
-        // Check if file is DWG or Word document
+        // Check if file is DWG, Word document, or BAK file
         const isValid = fileName.endsWith('.dwg') || 
                        fileName.endsWith('.doc') || 
-                       fileName.endsWith('.docx');
+                       fileName.endsWith('.docx') ||
+                       fileName.endsWith('.bak');
         
         if (!isValid) {
-          toast.error(`${file.name} is not a DWG or Word document`);
+          toast.error(`${file.name} is not a valid file type (DWG, Word, or BAK)`);
           continue;
         }
 
@@ -220,7 +221,8 @@ const ParcelDetails = () => {
           url: publicUrl,
           name: file.name,
           size: file.size,
-          type: fileName.endsWith('.dwg') ? 'dwg' : 'doc',
+          type: fileName.endsWith('.dwg') ? 'dwg' : 
+                fileName.endsWith('.bak') ? 'bak' : 'doc',
         });
       }
 
@@ -984,15 +986,15 @@ const ParcelDetails = () => {
                     ) : (
                       <>
                         <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload DWG or Word files</p>
-                        <p className="text-xs text-gray-500 mt-1">AutoCAD .dwg, .doc, .docx files</p>
+                        <p className="text-sm text-gray-600">Click to upload DWG, Word, or BAK files</p>
+                        <p className="text-xs text-gray-500 mt-1">AutoCAD .dwg, .bak, .doc, .docx files</p>
                       </>
                     )}
                   </div>
                   <input
                     type="file"
                     multiple
-                    accept=".dwg,.doc,.docx"
+                    accept=".dwg,.doc,.docx,.bak"
                     onChange={(e) => handleDwgUpload(e.target.files)}
                     className="hidden"
                     disabled={uploading}
