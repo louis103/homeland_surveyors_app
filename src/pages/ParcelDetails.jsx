@@ -51,6 +51,8 @@ const ParcelDetails = () => {
     lcb_files: [],
     transfer_files: [],
     succession_form_files: [],
+    search_form_files: [],
+    partition_form_files: [],
   });
 
   const fetchParcel = async () => {
@@ -1558,6 +1560,180 @@ const ParcelDetails = () => {
             </div>
             {(!formData?.succession_form_files || formData.succession_form_files.length === 0) && !isEditing && (
               <p className="text-gray-500 text-center py-8">No succession form documents uploaded</p>
+            )}
+          </div>
+
+          {/* Search Forms */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Search Forms</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading documents...</p>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload search form PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'search_form')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.search_form_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                        {file.uploaded_at && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(file.uploaded_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'search_form')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'search_form')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.search_form_files || formData.search_form_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No search form documents uploaded</p>
+            )}
+          </div>
+
+          {/* Partition Forms */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Partition Forms</h2>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                  <div className="text-center">
+                    {uploading ? (
+                      <>
+                        <Loader className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Uploading documents...</p>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload partition form PDFs</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf"
+                    onChange={(e) => handleDocumentUpload(e.target.files, 'partition_form')}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formData?.partition_form_files?.map((file, index) => (
+                <div key={index} className="relative group p-4 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <FileText className="h-10 w-10 text-purple-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                          {file.name}
+                        </p>
+                        {file.size && (
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        )}
+                        {file.uploaded_at && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(file.uploaded_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <button
+                        onClick={() => handleDocumentRemove(index, 'partition_form')}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                        title="Remove from list"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleDocumentDownload(file.url, file.name)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => handleDocumentDelete(file.url, index, 'partition_form')}
+                      className="flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                      title="Delete file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(!formData?.partition_form_files || formData.partition_form_files.length === 0) && !isEditing && (
+              <p className="text-gray-500 text-center py-8">No partition form documents uploaded</p>
             )}
           </div>
         </div>
