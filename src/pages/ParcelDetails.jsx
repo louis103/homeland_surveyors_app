@@ -450,8 +450,18 @@ const ParcelDetails = () => {
 
     try {
       for (const file of Array.from(files)) {
-        if (!file.name.toLowerCase().endsWith('.pdf')) {
-          toast.error(`${file.name} is not a PDF file`);
+        const fileName = file.name.toLowerCase();
+        
+        // Define allowed extensions based on document type
+        const allowedExtensions = documentType === 'transfer' 
+          ? ['.pdf', '.doc', '.docx']
+          : ['.pdf'];
+        
+        const isValid = allowedExtensions.some(ext => fileName.endsWith(ext));
+        
+        if (!isValid) {
+          const allowedTypes = documentType === 'transfer' ? 'PDF or Word' : 'PDF';
+          toast.error(`${file.name} is not a valid ${allowedTypes} file`);
           continue;
         }
 
@@ -1397,15 +1407,15 @@ const ParcelDetails = () => {
                     ) : (
                       <>
                         <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload Transfer PDFs</p>
-                        <p className="text-xs text-gray-500 mt-1">PDF files only</p>
+                        <p className="text-sm text-gray-600">Click to upload Transfer documents</p>
+                        <p className="text-xs text-gray-500 mt-1">PDF and Word (.doc, .docx) files</p>
                       </>
                     )}
                   </div>
                   <input
                     type="file"
                     multiple
-                    accept=".pdf"
+                    accept=".pdf,.doc,.docx"
                     onChange={(e) => handleDocumentUpload(e.target.files, 'transfer')}
                     className="hidden"
                     disabled={uploading}
