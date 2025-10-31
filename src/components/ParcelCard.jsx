@@ -4,18 +4,25 @@ import { useNavigate } from 'react-router-dom';
 const ParcelCard = ({ parcel }) => {
   const navigate = useNavigate();
 
-  // Calculate total count of owner + transferees
+  // Calculate total count of owners + transferees
   const getTotalPeople = () => {
     if (!parcel.owners) return 0;
     
-    // Check if it's the new structure (object with owner and transferees)
+    // Check if it's the new structure (object with owners and transferees arrays)
+    if (parcel.owners.owners || parcel.owners.transferees) {
+      const ownersCount = parcel.owners.owners?.length || 0;
+      const transfereeCount = parcel.owners.transferees?.length || 0;
+      return ownersCount + transfereeCount;
+    }
+    
+    // Old structure (single owner object) - from previous migration
     if (parcel.owners.owner || parcel.owners.transferees) {
       const ownerCount = parcel.owners.owner?.name ? 1 : 0;
       const transfereeCount = parcel.owners.transferees?.length || 0;
       return ownerCount + transfereeCount;
     }
     
-    // Old structure (array)
+    // Very old structure (array)
     if (Array.isArray(parcel.owners)) {
       return parcel.owners.length;
     }
@@ -33,8 +40,8 @@ const ParcelCard = ({ parcel }) => {
         </h3>
         <p className="text-sm text-gray-500">
           {totalPeople > 0
-            ? `${totalPeople} ${totalPeople === 1 ? 'person' : 'people'} (owner & transferees)`
-            : 'No owner assigned'}
+            ? `${totalPeople} ${totalPeople === 1 ? 'person' : 'people'} (owners & transferees)`
+            : 'No owners assigned'}
         </p>
         {parcel.creator_name && (
           <div className="flex items-center gap-1 mt-2">

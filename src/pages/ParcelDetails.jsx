@@ -31,7 +31,7 @@ const ParcelDetails = () => {
   const getEmptyFormData = () => ({
     parcel_number: '',
     owners: {
-      owner: { id: '', name: '', kra: '' },
+      owners: [{ id: '', name: '', kra: '' }],
       transferees: []
     },
     survey_date: '',
@@ -69,7 +69,48 @@ const ParcelDetails = () => {
 
       if (error) throw error;
       setParcel(data);
-      setFormData(data);
+      
+      // Normalize owners structure for backward compatibility
+      let normalizedData = { ...data };
+      if (data.owners) {
+        // Check if it's the new structure {owners: [...], transferees: [...]}
+        if (data.owners.owners && Array.isArray(data.owners.owners)) {
+          // Already in new format
+          normalizedData.owners = {
+            owners: data.owners.owners,
+            transferees: data.owners.transferees || []
+          };
+        }
+        // Check if it's the previous structure {owner: {...}, transferees: [...]}
+        else if (data.owners.owner && !Array.isArray(data.owners)) {
+          normalizedData.owners = {
+            owners: [data.owners.owner],
+            transferees: data.owners.transferees || []
+          };
+        }
+        // Check if it's the old array format
+        else if (Array.isArray(data.owners)) {
+          normalizedData.owners = {
+            owners: data.owners.length > 0 ? data.owners : [{ id: '', name: '', kra: '' }],
+            transferees: []
+          };
+        }
+        // If it's something else or empty, set default
+        else {
+          normalizedData.owners = {
+            owners: [{ id: '', name: '', kra: '' }],
+            transferees: []
+          };
+        }
+      } else {
+        // No owners data at all
+        normalizedData.owners = {
+          owners: [{ id: '', name: '', kra: '' }],
+          transferees: []
+        };
+      }
+      
+      setFormData(normalizedData);
     } catch (error) {
       console.error('Error fetching parcel:', error);
       toast.error('Failed to load parcel details');
@@ -393,20 +434,72 @@ const ParcelDetails = () => {
     }
   };
 
-  const handleOwnerChange = (field, value) => {
+  const handleOwnerChange = (index, field, value) => {
+    // Ensure owners structure exists
+    if (!formData.owners?.owners || !Array.isArray(formData.owners.owners)) {
+      console.error('Invalid owners structure');
+      return;
+    }
+    
+    const newOwners = [...formData.owners.owners];
+    newOwners[index][field] = value;
     setFormData({
       ...formData,
       owners: {
         ...formData.owners,
-        owner: {
-          ...formData.owners.owner,
-          [field]: value
-        }
+        owners: newOwners
       }
     });
   };
 
+  const addOwner = () => {
+    // Ensure owners structure exists
+    if (!formData.owners?.owners || !Array.isArray(formData.owners.owners)) {
+      // Initialize if missing
+      setFormData({
+        ...formData,
+        owners: {
+          owners: [{ id: '', name: '', kra: '' }, { id: '', name: '', kra: '' }],
+          transferees: formData.owners?.transferees || []
+        }
+      });
+      return;
+    }
+    
+    setFormData({
+      ...formData,
+      owners: {
+        ...formData.owners,
+        owners: [...formData.owners.owners, { id: '', name: '', kra: '' }]
+      }
+    });
+  };
+
+  const removeOwner = (index) => {
+    // Ensure owners structure exists
+    if (!formData.owners?.owners || !Array.isArray(formData.owners.owners)) {
+      console.error('Invalid owners structure');
+      return;
+    }
+    
+    if (formData.owners.owners.length > 1) {
+      setFormData({
+        ...formData,
+        owners: {
+          ...formData.owners,
+          owners: formData.owners.owners.filter((_, i) => i !== index)
+        }
+      });
+    }
+  };
+
   const handleTransfereeChange = (index, field, value) => {
+    // Ensure transferees structure exists
+    if (!formData.owners?.transferees || !Array.isArray(formData.owners.transferees)) {
+      console.error('Invalid transferees structure');
+      return;
+    }
+    
     const newTransferees = [...formData.owners.transferees];
     newTransferees[index][field] = value;
     setFormData({
@@ -419,16 +512,34 @@ const ParcelDetails = () => {
   };
 
   const addTransferee = () => {
+    // Ensure owners structure exists
+    if (!formData.owners) {
+      setFormData({
+        ...formData,
+        owners: {
+          owners: formData.owners?.owners || [{ id: '', name: '', kra: '' }],
+          transferees: [{ id: '', name: '', kra: '' }]
+        }
+      });
+      return;
+    }
+    
     setFormData({
       ...formData,
       owners: {
         ...formData.owners,
-        transferees: [...formData.owners.transferees, { id: '', name: '', kra: '' }]
+        transferees: [...(formData.owners.transferees || []), { id: '', name: '', kra: '' }]
       }
     });
   };
 
   const removeTransferee = (index) => {
+    // Ensure transferees structure exists
+    if (!formData.owners?.transferees || !Array.isArray(formData.owners.transferees)) {
+      console.error('Invalid transferees structure');
+      return;
+    }
+    
     setFormData({
       ...formData,
       owners: {
@@ -734,61 +845,94 @@ const ParcelDetails = () => {
             </div>
           </div>
 
-          {/* Owner and Transferees */}
+          {/* Owners and Transferees */}
           <div className="mb-8">
-            {/* Primary Owner */}
+            {/* Owners */}
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Primary Owner</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Owner Name
-                  </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData?.owners?.owner?.name || ''}
-                      onChange={(e) => handleOwnerChange('name', e.target.value)}
-                      className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Enter owner name"
-                    />
-                  ) : (
-                    <p className="text-gray-900">{formData?.owners?.owner?.name || 'N/A'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ID Number
-                  </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData?.owners?.owner?.id || ''}
-                      onChange={(e) => handleOwnerChange('id', e.target.value)}
-                      className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Enter ID number"
-                    />
-                  ) : (
-                    <p className="text-gray-900">{formData?.owners?.owner?.id || 'N/A'}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    KRA PIN
-                  </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData?.owners?.owner?.kra || ''}
-                      onChange={(e) => handleOwnerChange('kra', e.target.value)}
-                      className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="Enter KRA PIN"
-                    />
-                  ) : (
-                    <p className="text-gray-900">{formData?.owners?.owner?.kra || 'N/A'}</p>
-                  )}
-                </div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Owners</h2>
+                {isEditing && (
+                  <button
+                    onClick={addOwner}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    + Add Owner
+                  </button>
+                )}
               </div>
+              {formData?.owners?.owners && formData.owners.owners.length > 0 ? (
+                formData.owners.owners.map((owner, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Owner Name
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={owner.name}
+                          onChange={(e) => handleOwnerChange(index, 'name', e.target.value)}
+                          className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          placeholder="Enter owner name"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{owner.name || 'N/A'}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ID Number
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={owner.id}
+                          onChange={(e) => handleOwnerChange(index, 'id', e.target.value)}
+                          className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          placeholder="Enter ID number"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{owner.id || 'N/A'}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        KRA PIN
+                      </label>
+                      <div className="flex space-x-2">
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={owner.kra}
+                              onChange={(e) => handleOwnerChange(index, 'kra', e.target.value)}
+                              className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                              placeholder="Enter KRA PIN"
+                            />
+                            {formData.owners.owners.length > 1 && (
+                              <button
+                                onClick={() => removeOwner(index)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                                title="Remove owner"
+                              >
+                                <X className="h-5 w-5" />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-gray-900">{owner.kra || 'N/A'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-gray-500">
+                    {isEditing ? 'No owners added. Click "+ Add Owner" to add one.' : 'No owners'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Transferees */}
@@ -798,7 +942,7 @@ const ParcelDetails = () => {
                 {isEditing && (
                   <button
                     onClick={addTransferee}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    className="text-green-600 hover:text-green-700 text-sm font-medium"
                   >
                     + Add Transferee
                   </button>
