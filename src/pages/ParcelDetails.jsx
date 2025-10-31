@@ -30,7 +30,10 @@ const ParcelDetails = () => {
 
   const getEmptyFormData = () => ({
     parcel_number: '',
-    owners: [{ id: '', name: '', kra: '' }],
+    owners: {
+      owner: { id: '', name: '', kra: '' },
+      transferees: []
+    },
     survey_date: '',
     survey_fees: { paid: '', pending: '0' },
     board_fees: { paid: '', pending: '0' },
@@ -390,26 +393,49 @@ const ParcelDetails = () => {
     }
   };
 
-  const handleOwnerChange = (index, field, value) => {
-    const newOwners = [...formData.owners];
-    newOwners[index][field] = value;
-    setFormData({ ...formData, owners: newOwners });
-  };
-
-  const addOwner = () => {
+  const handleOwnerChange = (field, value) => {
     setFormData({
       ...formData,
-      owners: [...formData.owners, { id: '', name: '', kra: '' }]
+      owners: {
+        ...formData.owners,
+        owner: {
+          ...formData.owners.owner,
+          [field]: value
+        }
+      }
     });
   };
 
-  const removeOwner = (index) => {
-    if (formData.owners.length > 1) {
-      setFormData({
-        ...formData,
-        owners: formData.owners.filter((_, i) => i !== index)
-      });
-    }
+  const handleTransfereeChange = (index, field, value) => {
+    const newTransferees = [...formData.owners.transferees];
+    newTransferees[index][field] = value;
+    setFormData({
+      ...formData,
+      owners: {
+        ...formData.owners,
+        transferees: newTransferees
+      }
+    });
+  };
+
+  const addTransferee = () => {
+    setFormData({
+      ...formData,
+      owners: {
+        ...formData.owners,
+        transferees: [...formData.owners.transferees, { id: '', name: '', kra: '' }]
+      }
+    });
+  };
+
+  const removeTransferee = (index) => {
+    setFormData({
+      ...formData,
+      owners: {
+        ...formData.owners,
+        transferees: formData.owners.transferees.filter((_, i) => i !== index)
+      }
+    });
   };
 
   const handleFeeChange = (feeType, field, value) => {
@@ -708,21 +734,12 @@ const ParcelDetails = () => {
             </div>
           </div>
 
-          {/* Owners */}
+          {/* Owner and Transferees */}
           <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Owners</h2>
-              {isEditing && (
-                <button
-                  onClick={addOwner}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                >
-                  + Add Owner
-                </button>
-              )}
-            </div>
-            {formData?.owners?.map((owner, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+            {/* Primary Owner */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Primary Owner</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Owner Name
@@ -730,12 +747,13 @@ const ParcelDetails = () => {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={owner.name}
-                      onChange={(e) => handleOwnerChange(index, 'name', e.target.value)}
+                      value={formData?.owners?.owner?.name || ''}
+                      onChange={(e) => handleOwnerChange('name', e.target.value)}
                       className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Enter owner name"
                     />
                   ) : (
-                    <p className="text-gray-900">{owner.name}</p>
+                    <p className="text-gray-900">{formData?.owners?.owner?.name || 'N/A'}</p>
                   )}
                 </div>
                 <div>
@@ -745,43 +763,119 @@ const ParcelDetails = () => {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={owner.id}
-                      onChange={(e) => handleOwnerChange(index, 'id', e.target.value)}
+                      value={formData?.owners?.owner?.id || ''}
+                      onChange={(e) => handleOwnerChange('id', e.target.value)}
                       className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Enter ID number"
                     />
                   ) : (
-                    <p className="text-gray-900">{owner.id}</p>
+                    <p className="text-gray-900">{formData?.owners?.owner?.id || 'N/A'}</p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     KRA PIN
                   </label>
-                  <div className="flex space-x-2">
-                    {isEditing ? (
-                      <>
-                        <input
-                          type="text"
-                          value={owner.kra}
-                          onChange={(e) => handleOwnerChange(index, 'kra', e.target.value)}
-                          className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        {formData.owners.length > 1 && (
-                          <button
-                            onClick={() => removeOwner(index)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-gray-900">{owner.kra}</p>
-                    )}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={formData?.owners?.owner?.kra || ''}
+                      onChange={(e) => handleOwnerChange('kra', e.target.value)}
+                      className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Enter KRA PIN"
+                    />
+                  ) : (
+                    <p className="text-gray-900">{formData?.owners?.owner?.kra || 'N/A'}</p>
+                  )}
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Transferees */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Transferees</h2>
+                {isEditing && (
+                  <button
+                    onClick={addTransferee}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    + Add Transferee
+                  </button>
+                )}
+              </div>
+              {formData?.owners?.transferees && formData.owners.transferees.length > 0 ? (
+                formData.owners.transferees.map((transferee, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Transferee Name
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={transferee.name}
+                          onChange={(e) => handleTransfereeChange(index, 'name', e.target.value)}
+                          className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          placeholder="Enter transferee name"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{transferee.name}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ID Number
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={transferee.id}
+                          onChange={(e) => handleTransfereeChange(index, 'id', e.target.value)}
+                          className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          placeholder="Enter ID number"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{transferee.id}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        KRA PIN
+                      </label>
+                      <div className="flex space-x-2">
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="text"
+                              value={transferee.kra}
+                              onChange={(e) => handleTransfereeChange(index, 'kra', e.target.value)}
+                              className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                              placeholder="Enter KRA PIN"
+                            />
+                            <button
+                              onClick={() => removeTransferee(index)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                              title="Remove transferee"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </>
+                        ) : (
+                          <p className="text-gray-900">{transferee.kra}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-gray-500">
+                    {isEditing ? 'No transferees added. Click "+ Add Transferee" to add one.' : 'No transferees'}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Fees */}

@@ -4,6 +4,27 @@ import { useNavigate } from 'react-router-dom';
 const ParcelCard = ({ parcel }) => {
   const navigate = useNavigate();
 
+  // Calculate total count of owner + transferees
+  const getTotalPeople = () => {
+    if (!parcel.owners) return 0;
+    
+    // Check if it's the new structure (object with owner and transferees)
+    if (parcel.owners.owner || parcel.owners.transferees) {
+      const ownerCount = parcel.owners.owner?.name ? 1 : 0;
+      const transfereeCount = parcel.owners.transferees?.length || 0;
+      return ownerCount + transfereeCount;
+    }
+    
+    // Old structure (array)
+    if (Array.isArray(parcel.owners)) {
+      return parcel.owners.length;
+    }
+    
+    return 0;
+  };
+
+  const totalPeople = getTotalPeople();
+
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200 relative min-h-[120px] flex flex-col">
       <div className="flex-1 mb-12 sm:mb-0">
@@ -11,9 +32,9 @@ const ParcelCard = ({ parcel }) => {
           {parcel.parcel_number}
         </h3>
         <p className="text-sm text-gray-500">
-          {parcel.owners && parcel.owners.length > 0
-            ? `${parcel.owners.length} owner(s)`
-            : 'No owners'}
+          {totalPeople > 0
+            ? `${totalPeople} ${totalPeople === 1 ? 'person' : 'people'} (owner & transferees)`
+            : 'No owner assigned'}
         </p>
         {parcel.creator_name && (
           <div className="flex items-center gap-1 mt-2">
